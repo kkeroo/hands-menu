@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live WebSocket Stream</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .video-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        #videoStream {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: blur(8px) brightness(0.7);
+            transform: scaleX(-1);
+        }
+
+        .content {
+            position: relative;
+            z-index: 1;
+            padding: 20px;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+        }
+
+        h1 {
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .helper-text {
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-container">
+        <img id="videoStream">
+        <canvas id="overlayCanvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></canvas>
+        <img id="imageDisplay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: none; max-width: 80%; max-height: 80%;" src=""></img>
+    </div>
+
+    <div class="content">
+        <p class="helper-text"><i>✌️ PEACE</i> - Start the menu system</p>
+        <p class="helper-text"><i>🖐️ FIVE</i> - Rotate hand to navigate through options</p>
+        <p class="helper-text"><i>✊ FIST</i> - Return to previous menu</p>
+        <p class="helper-text"><i>☝️ INDEX</i> - Select highlighted option</p>
+    </div>
+
+    <div class="controls">
+        <input type="file" id="jsonFileInput" accept=".json">
+        <button onclick="uploadJSON()">Upload Menu Structure</button>
+    </div>
+    
+    <script>
+        var socket = io.connect("http://localhost:5432");
+
+        socket.on("frame", function (data) {
+            document.getElementById("videoStream").src = "data:image/jpeg;base64," + data.image;
+        });
+
+        socket.on("connect", function () {
+            console.log("Connected to WebSocket server!");
+        });
+
+        socket.on("disconnect", function () {
+            console.log("Disconnected from WebSocket server!");
+        });
+
+        function uploadJSON() {
+            const fileInput = document.getElementById('jsonFileInput');
+            const file = fileInput.files[0];
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const jsonData = JSON.parse(e.target.result);
+                    socket.emit('upload_menu_structure', jsonData);
+                };
+                reader.readAsText(file);
+            } else {
+                console.log("No file selected");
+            }
+        }
+
+        // Add canvas setup after socket initialization
+        const canvas = document.getElementById('overlayCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Ensure canvas size matches video
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Add menu drawing functionality
+        socket.on("menu_update", function(data) {
+            // Clear entire canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw hand center if it exists
+            if (window.lastHandCenter) {
+                drawHandCenter(window.lastHandCenter.x, window.lastHandCenter.y);
+            }
+
+            if (!data.center) return;
+
+            const center = {
+                x: data.center[0] * canvas.width,
+                y: data.center[1] * canvas.height
+            };
+
+            const radius = data.radius;
+            const options = data.options;
+            const selectedOption = data.selectedOption;
+            const angles = data.angles;
+            const circlePercentage = data.circlePercentage;
+            const image_url = data.image_url;
+
+            console.log(image_url);
+            if (image_url) {
+                const imageDisplay = document.getElementById('imageDisplay');
+                imageDisplay.src = image_url;
+                imageDisplay.style.display = 'block';
+                return;
+            }
+            else {
+                const imageDisplay = document.getElementById('imageDisplay');
+                imageDisplay.src = "";
+                imageDisplay.style.display = 'none';
+            }
+
+            // Draw the main circle/arc
+            ctx.beginPath();
+            const numOptions = options.length;
+            const startAngle = -Math.PI + (-Math.PI * (circlePercentage - 0.5));
+            const maxAngle = 2 * Math.PI * circlePercentage; // Total angle for the visible arc
+            const angleStep = maxAngle / numOptions;
+            const endAngle = startAngle + maxAngle;
+            console.log(startAngle, endAngle);
+            ctx.arc(center.x, center.y, radius, startAngle, endAngle);
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Circle properties
+            const portionColor = 'rgba(0, 255, 0, 0.5)'; // Fill color for the selected portion
+            const arcPoints = 30; // Number of points to approximate the arc
+
+            // Draw menu options
+            for (let i = 0; i < numOptions; i++) {
+                option = options[i]
+                const angle = startAngle + i * angleStep; // Calculate the angle for each option
+                let x = center.x + radius * Math.cos(angle);
+                let y = center.y + radius * Math.sin(angle);
+                const color = (i === selectedOption) ? 'rgb(0, 255, 0)' : 'rgb(255, 255, 255)';
+
+                // Draw the menu option lines
+                ctx.beginPath();
+                ctx.moveTo(center.x, center.y);
+                ctx.lineTo(x, y);
+                ctx.strokeStyle = 'rgb(200, 200, 200)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Calculate text position and draw text
+                const nextAngle = startAngle + (i + 1) * angleStep;
+                const textAngle = (angle + nextAngle) / 2;
+                const textX = center.x + radius * 1.2 * Math.cos(textAngle);
+                const textY = center.y + radius * 1.2 * Math.sin(textAngle);
+
+                if (i == numOptions - 1) {
+                    x = center.x + radius * Math.cos(nextAngle);
+                    y = center.y + radius * Math.sin(nextAngle);
+                    ctx.beginPath();
+                    ctx.moveTo(center.x, center.y);
+                    ctx.lineTo(x, y);
+                    ctx.strokeStyle = 'rgb(200, 200, 200)';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+
+                ctx.font = '14px Arial';
+                ctx.fillStyle = color;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(options[i], textX, textY);
+
+                // Draw the arc for the selected option
+                if (option === selectedOption) {
+                    console.log(selectedOption);
+                    ctx.beginPath();
+                    ctx.moveTo(center.x, center.y);
+                    ctx.arc(center.x, center.y, radius, angle, nextAngle);
+                    ctx.lineTo(center.x, center.y);
+                    ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+                    ctx.fill();
+                }
+            }
+
+
+        });
+
+        socket.on("hand_center", function (data) {
+            const x = data.x * canvas.width;
+            const y = data.y * canvas.height;
+            
+            window.lastHandCenter = {x, y};
+            drawHandCenter(x, y);
+        });
+
+        function drawHandCenter(x, y) {
+            ctx.beginPath();
+            ctx.arc(x, y, 10, 0, 2 * Math.PI);
+            ctx.fillStyle = 'red';
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    </script>
+</body>
+</html>
