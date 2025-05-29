@@ -1,0 +1,17 @@
+{
+    "1.letnik": {
+        "RI UNI 1.letnik": {"data": "photos/ri-uni-1.png"},
+        "RI-VS 1.letnik": { "data": "photos/ri-vs-1.png"},
+        "MM 1.letnik": { "data": "photos/mm-uni-1.png"}
+    },
+    "2.letnik": {
+        "RI UNI 2.letnik": {"data": "photos/ri-uni-2.png"},
+        "RI-VS 2.letnik": { "data": "photos/ri-vs-2.png"},
+        "MM 2.letnik": { "data": "photos/mm-uni-2.png"}
+    },
+    "3.letnik": {
+        "RI UNI 3.letnik": {"data": "photos/ri-uni-3.png"},
+        "RI-VS 3.letnik": { "data": "photos/ri-vs-3.png"},
+        "MM 3.letnik": { "data": "photos/mm-uni-3.png"}
+    }
+}
